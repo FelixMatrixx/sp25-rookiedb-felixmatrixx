@@ -7,8 +7,10 @@ import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
+import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.swing.text.html.Option;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -376,8 +378,30 @@ class LeafNode extends BPlusNode {
         // Note: LeafNode has two constructors. To implement fromBytes be sure to
         // use the constructor that reuses an existing page instead of fetching a
         // brand new one.
+        Page page = bufferManager.fetchPage(treeContext, pageNum);
+        Buffer buf = page.getBuffer();
 
-        return null;
+        byte nodeType = buf.get();
+        assert (nodeType == (byte) 1);
+
+        long rawRightSibling = buf.getLong();
+        Optional<Long> rightSibling = (rawRightSibling == -1L) ? Optional.empty() : Optional.of(rawRightSibling);
+
+         List<DataBox> keys = new ArrayList<>();
+         List<RecordId> rids = new ArrayList<>();
+         int n = buf.getInt();
+
+         for (int i = 0; i < n; ++i)
+         {
+             DataBox key = DataBox.fromBytes(buf, metadata.getKeySchema());
+             keys.add(key);
+
+             RecordId rid = RecordId.fromBytes(buf);
+             rids.add(rid);
+         }
+
+
+        return new LeafNode(metadata, bufferManager, page, keys, rids, rightSibling, treeContext);
     }
 
     // Builtins ////////////////////////////////////////////////////////////////
