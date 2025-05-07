@@ -119,7 +119,6 @@ public class TestBPlusTree {
     }
 
     // Tests ///////////////////////////////////////////////////////////////////
-
     @Test
     @Category(PublicTests.class)
     public void testSimpleBulkLoad() {
