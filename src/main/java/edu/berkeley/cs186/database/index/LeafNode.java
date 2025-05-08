@@ -165,7 +165,48 @@ class LeafNode extends BPlusNode {
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        typecheck(key);
+        // Case: inserting a duplicate value
+        if (keys.contains(key))
+            throw new BPlusTreeException("Key " + key + " already exists");
 
+        // Insert new key
+        int insertIndex = 0;
+        while (insertIndex < keys.size() && keys.get(insertIndex).compareTo(key) == -1)
+            insertIndex++;
+
+
+        keys.add(insertIndex, key);
+        rids.add(insertIndex, rid);
+
+        // Case: inserting key causes node to overflow
+        int treeOrder = metadata.getOrder();
+        if (this.keys.size() >= 2 * treeOrder)
+        {
+            /** Create a new leaf
+             * Step:
+             * 1.
+             */
+            List<DataBox> splitKeys = keys.subList(treeOrder, 2 * treeOrder);
+            List<RecordId> splitRids = rids.subList(treeOrder, 2 * treeOrder);
+            List<DataBox> newKeysList= new ArrayList<>(keys.subList(treeOrder, 2 * treeOrder));
+            List<RecordId> newRidList= new ArrayList<>(rids.subList(treeOrder, 2 * treeOrder));
+            Optional<Long> newLeafRightSiblibg = rightSibling;
+
+            LeafNode splitLeaf = new LeafNode(metadata, bufferManager, newKeysList, newRidList,
+                    newLeafRightSiblibg, treeContext);
+
+            // Clear the elements that were copied to new List
+            splitKeys.clear();
+            splitRids.clear();
+
+            sync();
+
+            DataBox splitKey = newKeysList.get(0);
+            Long splitPageNum = splitLeaf.getPage().getPageNum();
+
+            return Optional.of(Pair<splitKey, splitPageNum>);
+        }
         return Optional.empty();
     }
 
