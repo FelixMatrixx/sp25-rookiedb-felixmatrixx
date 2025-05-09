@@ -149,7 +149,7 @@ class LeafNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement (done)
-        // simply return this LeafNode
+        // simply  returnthis LeafNode
         return this;
     }
 
@@ -164,8 +164,7 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
-        typecheck(key);
+        // TODO(proj2): implement (done)
         // Case: inserting a duplicate value
         if (keys.contains(key))
             throw new BPlusTreeException("Key " + key + " already exists");
@@ -175,13 +174,12 @@ class LeafNode extends BPlusNode {
         while (insertIndex < keys.size() && keys.get(insertIndex).compareTo(key) == -1)
             insertIndex++;
 
-
         keys.add(insertIndex, key);
         rids.add(insertIndex, rid);
 
         // Case: inserting key causes node to overflow
         int treeOrder = metadata.getOrder();
-        if (this.keys.size() >= 2 * treeOrder)
+        if (this.keys.size() > 2 * treeOrder)
         {
             /** Create a new leaf
              * Step:
@@ -189,24 +187,27 @@ class LeafNode extends BPlusNode {
              */
             List<DataBox> splitKeys = keys.subList(treeOrder, 2 * treeOrder);
             List<RecordId> splitRids = rids.subList(treeOrder, 2 * treeOrder);
-            List<DataBox> newKeysList= new ArrayList<>(keys.subList(treeOrder, 2 * treeOrder));
-            List<RecordId> newRidList= new ArrayList<>(rids.subList(treeOrder, 2 * treeOrder));
-            Optional<Long> newLeafRightSiblibg = rightSibling;
+            List<DataBox> newKeysList= new ArrayList<>(splitKeys);
+            List<RecordId> newRidList= new ArrayList<>(splitRids);
+            Optional<Long> newLeafRightSibling = rightSibling;
 
-            LeafNode splitLeaf = new LeafNode(metadata, bufferManager, newKeysList, newRidList,
-                    newLeafRightSiblibg, treeContext);
+            BPlusNode splitLeafNode = new LeafNode(metadata, bufferManager, newKeysList, newRidList,
+                    newLeafRightSibling, treeContext);
 
             // Clear the elements that were copied to new List
             splitKeys.clear();
             splitRids.clear();
 
-            sync();
-
             DataBox splitKey = newKeysList.get(0);
-            Long splitPageNum = splitLeaf.getPage().getPageNum();
+            Long splitPageNum = splitLeafNode.getPage().getPageNum();
 
-            return Optional.of(Pair<splitKey, splitPageNum>);
+            // Update the current rightSibling pointer to the newLeaf
+            rightSibling = Optional.of(splitPageNum);
+
+            sync();
+            return Optional.of(new Pair(splitKey, splitPageNum));
         }
+        sync();
         return Optional.empty();
     }
 
@@ -223,7 +224,13 @@ class LeafNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-
+        int indexOfKey = keys.indexOf(key);
+        if (indexOfKey != -1)
+        {
+            keys.remove(indexOfKey);
+            rids.remove(indexOfKey);
+        }
+        sync();
         return;
     }
 

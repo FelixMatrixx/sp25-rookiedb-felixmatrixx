@@ -101,7 +101,46 @@ class InnerNode extends BPlusNode {
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        // Find the appropriate child pointer
+        int childIndex = numLessThanEqual(key, keys);
+        BPlusNode childNode = getChild(childIndex);
+        Optional<Pair<DataBox, Long>> putResult = childNode.put(key, rid);
 
+        // LeafNode was overflowed, add new key to InnerNode
+        if (putResult.isPresent())
+        {
+            Pair<DataBox, Long> resultPair = putResult.get();
+            DataBox splitKeyResult = resultPair.getFirst();
+            Long newLeafNodePage = resultPair.getSecond();
+            int indexOfSplitKey = numLessThanEqual(splitKeyResult, keys);
+
+            // When a Leaf Node split, the old Leaf Node still remains, the return new LeafNode will be added after the old one.
+            keys.add(indexOfSplitKey, splitKeyResult);
+            children.add(indexOfSplitKey + 1, newLeafNodePage);
+        }
+
+        // Case: InnerNode Overflow
+        int treeOrder = metadata.getOrder();
+        if (keys.size() > 2 * treeOrder)
+        {
+            List<DataBox> splitKeys = keys.subList(treeOrder + 1, 2 * treeOrder + 1);
+            List<Long> splitChildren = children.subList(treeOrder + 1, 2 * treeOrder + 1);
+            List<DataBox> newKeysList= new ArrayList<>(splitKeys);
+            List<Long> newChildrenList= new ArrayList<>(splitChildren);
+
+            BPlusNode splitInnerNode = new InnerNode(metadata, bufferManager, newKeysList, newChildrenList, treeContext);
+
+            DataBox splitKey = keys.get(treeOrder);
+            Long splitPageNum = splitInnerNode.getPage().getPageNum();
+
+            // Clear the splitted data
+            keys.subList(treeOrder, treeOrder + 1).clear();
+            children.subList(treeOrder, treeOrder + 1).clear();
+
+            sync();
+            return Optional.of(new Pair<>(splitKey, splitPageNum));
+        }
+        sync();
         return Optional.empty();
     }
 
@@ -118,7 +157,10 @@ class InnerNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-
+        int childIndex = numLessThanEqual(key, keys);
+        BPlusNode childNode = getChild(childIndex);
+        childNode.remove(key);
+        sync();
         return;
     }
 
