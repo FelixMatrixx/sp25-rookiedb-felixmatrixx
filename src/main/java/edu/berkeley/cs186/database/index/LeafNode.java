@@ -170,45 +170,46 @@ class LeafNode extends BPlusNode {
             throw new BPlusTreeException("Key " + key + " already exists");
 
         // Insert new key
-        int insertIndex = 0;
-        while (insertIndex < keys.size() && keys.get(insertIndex).compareTo(key) == -1)
-            insertIndex++;
+        int insertIndex = InnerNode.numLessThan(key, keys);
 
         keys.add(insertIndex, key);
         rids.add(insertIndex, rid);
 
+        int splitFlag = 0;
+        DataBox splitKey = null;
+        Long splitPageNum = -1L;
         // Case: inserting key causes node to overflow
         int treeOrder = metadata.getOrder();
         if (this.keys.size() > 2 * treeOrder)
         {
+            splitFlag = 1;
             /** Create a new leaf
              * Step:
-             * 1.
+             * 1. Split leaf, the last d + 1 entry to the new leaf
+             * 2. Delete splitted data in old node
+             * 3. Return split key (leftmost key of new leaf) and the page number of new Leaf
              */
-            List<DataBox> splitKeys = keys.subList(treeOrder, 2 * treeOrder);
-            List<RecordId> splitRids = rids.subList(treeOrder, 2 * treeOrder);
+            List<DataBox> splitKeys = keys.subList(treeOrder, 2 * treeOrder + 1);
+            List<RecordId> splitRids = rids.subList(treeOrder, 2 * treeOrder + 1);
             List<DataBox> newKeysList= new ArrayList<>(splitKeys);
             List<RecordId> newRidList= new ArrayList<>(splitRids);
+            // Clear the elements that were copied to new List
+            splitKeys.clear();
+            splitRids.clear();
+
             Optional<Long> newLeafRightSibling = rightSibling;
 
             BPlusNode splitLeafNode = new LeafNode(metadata, bufferManager, newKeysList, newRidList,
                     newLeafRightSibling, treeContext);
 
-            // Clear the elements that were copied to new List
-            splitKeys.clear();
-            splitRids.clear();
-
-            DataBox splitKey = newKeysList.get(0);
-            Long splitPageNum = splitLeafNode.getPage().getPageNum();
+            splitKey = newKeysList.get(0);
+            splitPageNum = splitLeafNode.getPage().getPageNum();
 
             // Update the current rightSibling pointer to the newLeaf
             rightSibling = Optional.of(splitPageNum);
-
-            sync();
-            return Optional.of(new Pair(splitKey, splitPageNum));
         }
         sync();
-        return Optional.empty();
+        return (splitFlag == 1) ? Optional.of(new Pair(splitKey, splitPageNum)) : Optional.empty();
     }
 
     // See BPlusNode.bulkLoad.

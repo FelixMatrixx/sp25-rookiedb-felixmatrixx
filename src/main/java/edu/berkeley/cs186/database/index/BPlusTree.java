@@ -11,6 +11,7 @@ import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -145,8 +146,8 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): implement
-        LeafNode targetLeaf = this.root.get(key);
+        // TODO(proj2): implement (done)
+        LeafNode targetLeaf = root.get(key);
 
         return targetLeaf.getKey(key);
     }
@@ -204,7 +205,7 @@ public class BPlusTree {
 
         // TODO(proj2): Return a BPlusTreeIterator.
 
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator();
     }
 
     /**
@@ -236,8 +237,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator(key);
     }
 
     /**
@@ -258,6 +258,29 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+
+        // Find the appropriate child pointer
+        Optional<Pair<DataBox, Long>> putResult = root.put(key, rid);
+
+        // If root was overflowed, split it
+        if (putResult.isPresent())
+        {
+            Pair<DataBox, Long> resultPair = putResult.get();
+            DataBox splitKeyResult = resultPair.getFirst();
+            Long newChildNodePage = resultPair.getSecond();
+
+            List<DataBox> newKeysList = new ArrayList<>();
+            newKeysList.add(splitKeyResult);
+
+            List<Long> newChildNodesList = new ArrayList<>();
+            // Old root is the first child of new root.
+            // New Split page from InnerNode will be the second child
+            newChildNodesList.add(root.getPage().getPageNum());
+            newChildNodesList.add(newChildNodePage);
+
+            BPlusNode newRoot = new InnerNode(metadata, bufferManager, newKeysList, newChildNodesList, lockContext);
+            updateRoot(newRoot);
+        }
 
         return;
     }
@@ -310,7 +333,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): implement
-
+        root.get(key).remove(key);
         return;
     }
 
@@ -424,19 +447,55 @@ public class BPlusTree {
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
         // TODO(proj2): Add whatever fields and constructors you want here.
+        private LeafNode currentLeaf = null;
+        private Iterator<RecordId> currentLeafIterator = null;
+        private DataBox scanGreatOrEqualKey = null; // determine ScanAll mode
+
+        public BPlusTreeIterator()
+        {
+            currentLeaf =  root.getLeftmostLeaf();
+            currentLeafIterator = currentLeaf.scanAll();
+            scanGreatOrEqualKey = null; // determine ScanAll mode
+        }
+
+        public BPlusTreeIterator(DataBox scanKey)
+        {
+            currentLeaf = root.get(scanKey);
+            currentLeafIterator = currentLeaf.scanGreaterEqual(scanKey);
+            scanGreatOrEqualKey = scanKey; // determine scanGreaterOrEqual Mode
+        }
 
         @Override
         public boolean hasNext() {
             // TODO(proj2): implement
+            // If iterator is empty, move to the next Leaf
+            while (!currentLeafIterator.hasNext())
+            {
+                Optional<LeafNode> rightSiblingNode = currentLeaf.getRightSibling();
+                if (rightSiblingNode.isPresent())
+                {
+                    currentLeaf = rightSiblingNode.get();
+                    // For scanAll, start from the beginning of the leaf
+                    // For scanGreaterOrEqual, the following leaf always have keys >= scanKey
+                    currentLeafIterator = currentLeaf.scanAll();
+                }
+                else
+                    // No more leaf
+                    return false;
+            }
 
-            return false;
+            // If we exist the loop, we have elements in the currentLeafIterator
+            return true;
         }
 
         @Override
         public RecordId next() {
             // TODO(proj2): implement
-
-            throw new NoSuchElementException();
+            if (!hasNext())
+            {
+                throw new NoSuchElementException();
+            }
+            return currentLeafIterator.next();
         }
     }
 }

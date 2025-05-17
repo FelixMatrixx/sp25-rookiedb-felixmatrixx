@@ -81,9 +81,8 @@ class InnerNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
-        int childIndex = numLessThanEqual(key, this.keys);
+        int childIndex = numLessThanEqual(key, keys);
         BPlusNode child = getChild(childIndex);
-
         return child.get(key);
     }
 
@@ -92,8 +91,7 @@ class InnerNode extends BPlusNode {
     public LeafNode getLeftmostLeaf() {
         assert(children.size() > 0);
         // TODO(proj2): implement
-        long firstChildPage = children.get(0);
-        BPlusNode firstChildNode = BPlusNode.fromBytes(metadata, bufferManager, treeContext, firstChildPage);
+        BPlusNode firstChildNode = getChild(0);
         return firstChildNode.getLeftmostLeaf();
     }
 
@@ -111,37 +109,37 @@ class InnerNode extends BPlusNode {
         {
             Pair<DataBox, Long> resultPair = putResult.get();
             DataBox splitKeyResult = resultPair.getFirst();
-            Long newLeafNodePage = resultPair.getSecond();
-            int indexOfSplitKey = numLessThanEqual(splitKeyResult, keys);
+            Long newChildNodePage = resultPair.getSecond();
 
             // When a Leaf Node split, the old Leaf Node still remains, the return new LeafNode will be added after the old one.
-            keys.add(indexOfSplitKey, splitKeyResult);
-            children.add(indexOfSplitKey + 1, newLeafNodePage);
+            keys.add(childIndex, splitKeyResult);
+            children.add(childIndex + 1, newChildNodePage);
         }
 
+        int splitFlag = 0;
+        DataBox splitKey = null;
+        Long splitPageNum = -1L;
         // Case: InnerNode Overflow
         int treeOrder = metadata.getOrder();
         if (keys.size() > 2 * treeOrder)
         {
+            splitFlag = 1;
             List<DataBox> splitKeys = keys.subList(treeOrder + 1, 2 * treeOrder + 1);
-            List<Long> splitChildren = children.subList(treeOrder + 1, 2 * treeOrder + 1);
+            List<Long> splitChildren = children.subList(treeOrder + 1, 2 * treeOrder + 2);
             List<DataBox> newKeysList= new ArrayList<>(splitKeys);
             List<Long> newChildrenList= new ArrayList<>(splitChildren);
 
             BPlusNode splitInnerNode = new InnerNode(metadata, bufferManager, newKeysList, newChildrenList, treeContext);
 
-            DataBox splitKey = keys.get(treeOrder);
-            Long splitPageNum = splitInnerNode.getPage().getPageNum();
+            splitKey = keys.get(treeOrder);
+            splitPageNum = splitInnerNode.getPage().getPageNum();
 
             // Clear the splitted data
-            keys.subList(treeOrder, treeOrder + 1).clear();
-            children.subList(treeOrder, treeOrder + 1).clear();
-
-            sync();
-            return Optional.of(new Pair<>(splitKey, splitPageNum));
+            keys.subList(treeOrder, 2 * treeOrder + 1).clear();
+            children.subList(treeOrder + 1, 2 * treeOrder + 2).clear();
         }
         sync();
-        return Optional.empty();
+        return (splitFlag == 1) ? Optional.of(new Pair<>(splitKey, splitPageNum)) : Optional.empty();
     }
 
     // See BPlusNode.bulkLoad.
@@ -156,11 +154,12 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
-        int childIndex = numLessThanEqual(key, keys);
-        BPlusNode childNode = getChild(childIndex);
-        childNode.remove(key);
-        sync();
+        // TODO(proj2): implement (done)
+//        int childIndex = numLessThanEqual(key, keys);
+//        BPlusNode childNode = getChild(childIndex);
+//        childNode.remove(key);
+//        sync();
+        get(key).remove(key);
         return;
     }
 
