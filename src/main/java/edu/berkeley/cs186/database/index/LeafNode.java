@@ -217,8 +217,39 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        int splitFlag = 0;
+        int maxElements = (int) Math.ceil(2 * metadata.getOrder() * fillFactor);
+        Pair<DataBox, RecordId> pair = null;
+        DataBox splitKey = null;
+        Long splitPageNum = -1L;
+        while (data.hasNext())
+        {
+            pair = data.next();
+            keys.add(pair.getFirst());
+            rids.add(pair.getSecond());
+            if (keys.size() > maxElements)
+            {
+                splitFlag = 1;
+                int lastElementIndex = keys.size() - 1;
 
-        return Optional.empty();
+                List<DataBox> rightNodeKeys = new ArrayList<>(Arrays.asList(keys.get(lastElementIndex)));
+                List<RecordId> rightNodeRids = new ArrayList<>(Arrays.asList(rids.get(lastElementIndex)));
+
+                keys.remove(lastElementIndex);
+                rids.remove(lastElementIndex);
+
+                LeafNode rightNode = new LeafNode(metadata, bufferManager, rightNodeKeys, rightNodeRids, Optional.empty(), treeContext);
+                rightSibling = Optional.of(rightNode.getPage().getPageNum());
+
+                splitKey = rightNodeKeys.get(0);
+                splitPageNum = rightNode.getPage().getPageNum();
+
+                break;
+            }
+        }
+
+        sync();
+        return (splitFlag == 1) ? Optional.of(new Pair(splitKey, splitPageNum)) : Optional.empty();
     }
 
     // See BPlusNode.remove.

@@ -147,8 +147,43 @@ class InnerNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        int splitFlag = 0;
+        DataBox splitKey = null;
+        Long splitPageNum = -1L;
+        while (data.hasNext())
+        {
+            BPlusNode childNode = getChild(children.size() - 1);
+            Optional<Pair<DataBox, Long>> bulkLoadResult = childNode.bulkLoad(data, fillFactor);
 
-        return Optional.empty();
+            if (bulkLoadResult.isPresent())
+            {
+                Pair<DataBox, Long> resultPair = bulkLoadResult.get();
+                DataBox childSplitKey = resultPair.getFirst();
+                Long childSplitPageNum = resultPair.getSecond();
+
+                keys.add(childSplitKey);
+                children.add(childSplitPageNum);
+            }
+
+            int treeOrder = metadata.getOrder();
+            if (keys.size() > 2 * treeOrder)
+            {
+                splitFlag = 1;
+                List<DataBox> rightNodeKeys = new ArrayList<>(keys.subList(treeOrder + 1, keys.size()));
+                List<Long> rightChildren = new ArrayList<>(children.subList(treeOrder + 1, children.size()));
+
+                BPlusNode newInnerNode = new InnerNode(metadata, bufferManager, rightNodeKeys, rightChildren, treeContext);
+
+                splitKey = keys.get(treeOrder);
+                splitPageNum = newInnerNode.getPage().getPageNum();
+
+                keys.subList(treeOrder, keys.size()).clear();
+                children.subList(treeOrder + 1, children.size()).clear();
+            }
+        }
+
+        sync();
+        return (splitFlag == 1) ? Optional.of(new Pair(splitKey, splitPageNum)) : Optional.empty();
     }
 
     // See BPlusNode.remove.
